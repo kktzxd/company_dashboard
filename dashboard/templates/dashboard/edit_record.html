@@ -1,0 +1,84 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Редактирование записи</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f5f8;
+            color: #253247;
+            margin: 0;
+        }
+        header {
+            background: #183153;
+            color: white;
+            padding: 22px 4%;
+        }
+        main {
+            max-width: 650px;
+            margin: 30px auto;
+            padding: 25px;
+            background: white;
+            border-radius: 10px;
+        }
+        .field { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 7px; font-weight: bold; }
+        input {
+            box-sizing: border-box;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccd3dd;
+            border-radius: 5px;
+        }
+        button, .back {
+            display: inline-block;
+            padding: 11px 16px;
+            border: 0;
+            border-radius: 5px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        button { background: #2459a9; color: white; }
+        .back { background: #e8edf4; color: #253247; }
+        .errorlist { color: #b42318; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Редактирование записи</h1>
+</header>
+
+<main>
+    <p><strong>Раздел:</strong> {{ title }}</p>
+    <p><strong>ID записи:</strong> {{ record.record_id }}</p>
+
+    <form method="post">
+        {% csrf_token %}
+
+        {% for field in form %}
+        <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+                <div class="errorlist">{{ field.errors }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {% if form.non_field_errors %}
+            <div class="errorlist">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <button type="submit">Сохранить изменения</button>
+
+        <a class="back"
+           href="/?date_from={{ date_from }}&date_to={{ date_to }}">
+            Отмена
+        </a>
+    </form>
+</main>
+</body>
+</html>

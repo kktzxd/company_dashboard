@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Панель руководителя</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f5f8;
+            color: #253247;
+        }
+        header {
+            background: #183153;
+            color: white;
+            padding: 22px 4%;
+        }
+        header h1 { margin: 0 0 8px; }
+        header a { color: white; margin-right: 18px; }
+        main { max-width: 1400px; margin: 25px auto; padding: 0 20px; }
+        .panel {
+            background: white;
+            padding: 20px;
+            margin-bottom: 22px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px #0000000b;
+        }
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: end;
+        }
+        label { display: block; margin-bottom: 6px; }
+        input, button {
+            padding: 10px;
+            border: 1px solid #ccd3dd;
+            border-radius: 5px;
+        }
+        button {
+            background: #2459a9;
+            color: white;
+            cursor: pointer;
+        }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 15px;
+            margin-bottom: 22px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #3674c5;
+        }
+        .card .name { color: #627087; font-size: 14px; }
+        .card .value { font-size: 28px; font-weight: bold; margin-top: 10px; }
+        .table-wrap { overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; min-width: 650px; }
+        th, td {
+            padding: 11px;
+            border-bottom: 1px solid #e4e8ee;
+            text-align: left;
+        }
+        th { background: #f6f8fb; }
+        h2 { margin-top: 0; }
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 22px;
+        }
+        .chart-box { min-width: 0; height: 300px; }
+        .muted { color: #68758a; font-size: 13px; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Панель руководителя</h1>
+    <div>Сводные показатели по рабочим данным</div>
+    <p>
+        <a href="/">Панель</a>
+        <a href="/upload/">Загрузка Excel</a>
+        <a href="/admin/">Администрирование</a>
+    </p>
+</header>
+
+<main>
+    <section class="panel">
+        <h2>Период отчёта</h2>
+        <form method="get" class="filters">
+            <div>
+                <label for="date_from">Дата с</label>
+                <input type="date" id="date_from" name="date_from"
+                       value="{{ date_from }}">
+            </div>
+            <div>
+                <label for="date_to">Дата по</label>
+                <input type="date" id="date_to" name="date_to"
+                       value="{{ date_to }}">
+            </div>
+            <button type="submit">Применить фильтр</button>
+            <a href="/">Сбросить</a>
+        </form>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px;">
+            <a href="{% url 'export_excel' %}?date_from={{ date_from }}&date_to={{ date_to }}"
+               style="display: inline-block; padding: 10px 14px; background: #217346;
+                      color: white; text-decoration: none; border-radius: 5px;">
+                Скачать Excel
+            </a>
+            <a href="{% url 'export_csv' %}?date_from={{ date_from }}&date_to={{ date_to }}"
+               style="display: inline-block; padding: 10px 14px; background: #2459a9;
+                      color: white; text-decoration: none; border-radius: 5px;">
+                Скачать CSV
+            </a>
+        </div>
+        <p class="muted">
+            Показатели пересчитываются по записям выбранного периода.
+            Значения пока включают все импортированные записи.
+        </p>
+    </section>
+
+    <section class="cards">
+        <div class="card">
+            <div class="name">Заготовка — план</div>
+            <div class="value">{{ summary.stock_plan }}</div>
+        </div>
+        <div class="card">
+            <div class="name">Заготовка — факт</div>
+            <div class="value">{{ summary.stock_fact }}</div>
+        </div>
+        <div class="card">
+            <div class="name">Потребность сварки</div>
+            <div class="value">{{ summary.welding_need }}</div>
+        </div>
+        <div class="card">
+            <div class="name">Документация — план</div>
+            <div class="value">{{ summary.docs_plan }}</div>
+        </div>
+        <div class="card">
+            <div class="name">Документация — факт</div>
+            <div class="value">{{ summary.docs_fact }}</div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Качество данных</h2>
+
+        <p>
+            Найдено предупреждений:
+            <strong>{{ diagnostics|length }}</strong>
+        </p>
+
+        {% if diagnostics %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Тип проблемы</th>
+                        <th>Описание</th>
+                        <th>Действие</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in diagnostics %}
+                    <tr>
+                        <td>
+                            {% if item.severity == "error" %}
+                                <span style="color: #b42318; font-weight: bold;">
+                                    {{ item.title }}
+                                </span>
+                            {% else %}
+                                <span style="color: #9a6700; font-weight: bold;">
+                                    {{ item.title }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.message }}</td>
+                        <td>
+                            <a href="{% url 'edit_record' item.data_type item.pk %}?date_from={{ date_from }}&date_to={{ date_to }}">
+                                Открыть запись
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p>Проблемных записей не обнаружено.</p>
+        {% endif %}
+    </section>
+
+    <section class="panel">
+        <h2>Динамика показателей</h2>
+        <div class="charts">
+            <div class="chart-box">
+                <h3>Заготовка</h3>
+                <canvas id="stockChart"></canvas>
+            </div>
+            <div class="chart-box">
+                <h3>Потребность сварки</h3>
+                <canvas id="weldingChart"></canvas>
+            </div>
+            <div class="chart-box">
+                <h3>Документация</h3>
+                <canvas id="docsChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Сводка по дням</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Заготовка: план</th>
+                    <th>Заготовка: факт</th>
+                    <th>Потребность сварки</th>
+                    <th>Документы: план</th>
+                    <th>Документы: факт</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in daily_summary %}
+                <tr>
+                    <td>{{ row.date }}</td>
+                    <td>{{ row.stock_plan }}</td>
+                    <td>{{ row.stock_fact }}</td>
+                    <td>{{ row.welding_need }}</td>
+                    <td>{{ row.docs_plan }}</td>
+                    <td>{{ row.docs_fact }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6">За выбранный период записей нет.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Заготовка и потребность сварки по партиям</h2>
+        <p class="muted">
+            Связь выполняется по batch_id. Разница = факт заготовки − потребность
+            сварки. Нулевое значение факта не подменяется отсутствующим.
+        </p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Партия</th>
+                    <th>Потребность сварки</th>
+                    <th>Факт заготовки</th>
+                    <th>Разница</th>
+                    <th>Связанные записи заготовки</th>
+                    <th>Статус</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in batch_comparison %}
+                <tr>
+                    <td>{{ row.batch_id }}</td>
+                    <td>{{ row.need_qty }}</td>
+                    <td>
+                        {% if row.stock_fact is None %}
+                            Нет данных
+                        {% else %}
+                            {{ row.stock_fact }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.difference is None %}
+                            —
+                        {% else %}
+                            {{ row.difference }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for item in row.stock_records %}
+                            {{ item.record_id }} (факт:
+                            {% if item.fact_qty is None %}нет данных{% else %}{{ item.fact_qty }}{% endif %})
+                            {% if not forloop.last %}; {% endif %}
+                        {% empty %}
+                            Нет связанных записей
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if row.requires_review %}
+                            <strong>Требует проверки</strong>
+                            <ul>
+                                {% for issue in row.quality_issues %}
+                                    <li>{{ issue }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            Проверка пройдена
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+
+    <section class="panel">
+        <h2>Записи заготовки</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID записи</th>
+                    <th>Дата</th>
+                    <th>Партия</th>
+                    <th>Сотрудник</th>
+                    <th>План</th>
+                    <th>Факт</th>
+                    <th>Действие</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for item in stock %}
+                <tr>
+                    <td>{{ item.record_id }}</td>
+                    <td>{{ item.date|date:"d.m.Y" }}</td>
+                    <td>{{ item.batch_id }}</td>
+                    <td>{{ item.employee }}</td>
+                    <td>{{ item.plan_qty }}</td>
+                    <td>
+                        {% if item.fact_qty is None %}
+                            Нет данных
+                        {% else %}
+                            {{ item.fact_qty }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'edit_record' 'stock' item.pk %}?date_from={{ date_from }}&date_to={{ date_to }}">
+                            Редактировать
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7">Записей нет.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Записи потребности сварки</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID записи</th>
+                    <th>Дата</th>
+                    <th>Партия</th>
+                    <th>Потребность</th>
+                    <th>Действие</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for item in welding %}
+                <tr>
+                    <td>{{ item.record_id }}</td>
+                    <td>{{ item.date|date:"d.m.Y" }}</td>
+                    <td>{{ item.batch_id }}</td>
+                    <td>{{ item.need_qty }}</td>
+                    <td>
+                        <a href="{% url 'edit_record' 'welding' item.pk %}?date_from={{ date_from }}&date_to={{ date_to }}">
+                            Редактировать
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">Записей нет.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Записи документации</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID записи</th>
+                    <th>Дата</th>
+                    <th>Сотрудник</th>
+                    <th>План документов</th>
+                    <th>Факт документов</th>
+                    <th>Действие</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for item in docs %}
+                <tr>
+                    <td>{{ item.record_id }}</td>
+                    <td>{{ item.date|date:"d.m.Y" }}</td>
+                    <td>{{ item.employee }}</td>
+                    <td>{{ item.plan_docs }}</td>
+                    <td>{{ item.fact_docs }}</td>
+                    <td>
+                        <a href="{% url 'edit_record' 'documentation' item.pk %}?date_from={{ date_from }}&date_to={{ date_to }}">
+                            Редактировать
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6">Записей нет.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+
+<script>
+const data = {{ chart_data|safe }};
+
+function makeChart(elementId, labels, datasets) {
+    new Chart(document.getElementById(elementId), {
+        type: "bar",
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+
+makeChart("stockChart", data.labels, [
+    { label: "План", data: data.stock_plan },
+    { label: "Факт", data: data.stock_fact }
+]);
+
+makeChart("weldingChart", data.labels, [
+    { label: "Потребность сварки", data: data.welding_need }
+]);
+
+makeChart("docsChart", data.labels, [
+    { label: "План", data: data.docs_plan },
+    { label: "Факт", data: data.docs_fact }
+]);
+</script>
+</body>
+</html>

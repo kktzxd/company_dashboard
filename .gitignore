@@ -1,0 +1,22 @@
+```gitignore
+# Виртуальное окружение
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Переменные окружения и секреты
+.env
+.env.*
+
+# Локальная база данных
+db.sqlite3
+
+# PyCharm
+.idea/
+
+# Тестирование и кэш
+.pytest_cache/
+.coverage
